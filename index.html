@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Celsus Dash - Competitivo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'Press Start 2P', cursive;
+            touch-action: manipulation;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 30px rgba(197, 160, 89, 0.3);
+            border: 4px solid #c5a059;
+            background-color: #000;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            width: 100%;
+            height: auto;
+        }
+        .ui-overlay {
+            pointer-events: none;
+            text-shadow: 1px 1px 0 #000;
+        }
+        .quiz-btn {
+            pointer-events: auto;
+            transition: transform 0.1s;
+        }
+        .quiz-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- Pantalla de Inicio -->
+        <div id="start-screen" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#001a4d] text-white p-6 text-center">
+            <div class="mb-4 scale-90">
+                <svg width="100" height="120" viewBox="0 0 100 120">
+                    <path d="M10,10 L90,10 L90,80 C90,100 50,115 50,115 C50,115 10,100 10,80 Z" fill="#001a4d" stroke="#c5a059" stroke-width="4"/>
+                    <circle cx="50" cy="70" r="24" fill="white"/>
+                    <path d="M35,80 L50,55 L65,80 Z" fill="#c5a059"/> 
+                    <path d="M42,80 L50,65 L58,80 Z" fill="white"/>
+                    <path d="M30,95 Q50,105 70,95" stroke="white" stroke-width="2" fill="none"/>
+                    <text x="50" y="35" text-anchor="middle" fill="white" font-family="Arial" font-size="10" font-weight="bold">CELSUS</text>
+                </svg>
+            </div>
+            <h1 class="text-xl md:text-2xl mb-4 text-[#c5a059] tracking-widest">CELSUS DASH</h1>
+            <p class="text-[10px] md:text-xs mb-2 leading-loose text-gray-200">
+                SELECCIONA TU NIVEL
+            </p>
+            <div class="flex gap-4 mb-8">
+                <button onclick="startGame('aprendiz')" class="bg-[#c5a059] text-[#001a4d] px-4 py-3 text-xs md:text-sm font-bold border-b-4 border-[#8a703e] active:border-b-0 pointer-events-auto hover:bg-[#d4b57a]">
+                    LECTOR APRENDIZ
+                </button>
+                <button onclick="startGame('maestro')" class="bg-[#c5a059] text-[#001a4d] px-4 py-3 text-xs md:text-sm font-bold border-b-4 border-[#8a703e] active:border-b-0 pointer-events-auto hover:bg-[#d4b57a]">
+                    MAESTRO LECTOR
+                </button>
+            </div>
+            <div class="text-[8px] text-[#c5a059] leading-loose space-y-1 font-bold">
+                <p>MÁXIMO APRENDIZ: <span id="best-score-ap">N/A</span></p>
+                <p>MÁXIMO MAESTRO: <span id="best-score-ma">N/A</span></p>
+            </div>
+        </div>
+
+        <!-- UI del Juego -->
+        <div id="game-ui" class="absolute inset-0 z-10 hidden ui-overlay p-4 flex flex-col justify-between">
+            <div class="flex justify-between items-start text-white text-[10px]">
+                <div class="bg-[#001a4d]/90 p-2 border border-[#c5a059] rounded flex flex-col gap-1">
+                    <span>META: <span id="time-display">60.0</span>s</span>
+                    <span id="lives-display" class="text-red-400">♥</span>
+                </div>
+                <div id="level-display" class="bg-[#c5a059] text-[#001a4d] p-2 font-bold rounded">NIVEL 1</div>
+            </div>
+            <div id="powerup-status" class="text-[#c5a059] text-[10px] text-center font-bold opacity-0 transition-opacity duration-300 bg-black/60 border border-[#c5a059] p-2 rounded mx-auto">¡PODER CELSUS!</div>
+        </div>
+
+        <!-- Pantalla Quiz -->
+        <div id="quiz-screen" class="absolute inset-0 z-40 hidden flex flex-col items-center justify-center bg-[#001a4d]/95 text-white p-4 text-center">
+            <h2 class="text-sm md:text-lg mb-4 text-[#c5a059]">¡PREGUNTA DE RESCATE!</h2>
+            <p id="quiz-question" class="text-[10px] md:text-xs mb-6 max-w-[80%] leading-relaxed">¿Pregunta?</p>
+            <div id="quiz-options" class="flex flex-col gap-3 w-3/4 max-w-xs"></div>
+        </div>
+
+        <!-- Pantalla Game Over -->
+        <div id="game-over-screen" class="absolute inset-0 z-30 hidden flex flex-col items-center justify-center bg-red-950/95 text-white p-4 text-center">
+            <h2 class="text-xl mb-4 text-red-400">JUEGO TERMINADO</h2>
+            <p class="text-[10px] md:text-xs text-yellow-300 mb-4 font-bold">¡Gracias por participar en la Feria del Libro!</p>
+            <!-- TODO FUTURO: Formulario (Nombre, Correo) para enviar reconocimiento a la BD -->
+            <div class="bg-black/50 p-4 border border-gray-600 rounded mb-6 w-3/4 max-w-xs">
+                <p class="text-[10px] mb-1 text-gray-300">ESTE INTENTO:</p>
+                <p class="text-sm md:text-base text-white mb-2">NIVEL <span id="current-score-display" class="font-bold">1</span></p>
+                <p class="text-[10px] mb-4 text-red-400">VIDAS USADAS: <span id="lives-used-display-go" class="font-bold">0</span></p>
+                <p class="text-[10px] mb-1 text-[#c5a059]">MEJOR PUNTAJE HISTÓRICO:</p>
+                <p class="text-sm md:text-base text-[#c5a059] font-bold">NIVEL <span id="high-score-display">1</span></p>
+            </div>
+            <button onclick="resetGame()" class="bg-white text-red-900 px-6 py-3 text-xs font-bold border-b-4 border-gray-400 active:border-b-0 pointer-events-auto">
+                VOLVER A JUGAR
+            </button>
+        </div>
+
+        <!-- Pantalla de Nivel Completado -->
+        <div id="level-clear-screen" class="absolute inset-0 z-30 hidden flex flex-col items-center justify-center bg-[#001a4d]/95 text-white p-4 text-center border-4 border-[#c5a059]">
+            <h2 id="level-clear-title" class="text-xl md:text-2xl mb-2 text-[#c5a059]">¡NIVEL 1 SUPERADO!</h2>
+            <p id="level-clear-recognition" class="text-[10px] md:text-xs text-yellow-300 mb-2 font-bold">¡Excelente trabajo, sigue leyendo y aprendiendo!</p>
+            <p class="text-[10px] mb-4 text-red-400">VIDAS USADAS: <span id="lives-used-display-lc" class="font-bold text-lg">0</span></p>
+            <p class="text-[10px] mb-6 text-gray-300">PREPÁRATE PARA MAYOR VELOCIDAD</p>
+            <!-- TODO FUTURO: Formulario (Nombre, Correo) para enviar reconocimiento a la BD -->
+            <button onclick="startNextLevel()" class="bg-[#c5a059] text-[#001a4d] px-6 py-4 text-xs md:text-sm font-bold border-b-4 border-[#8a703e] active:border-b-0 pointer-events-auto hover:bg-[#d4b57a]">
+                SIGUIENTE NIVEL
+            </button>
+        </div>
+
+        <!-- Pantalla de Victoria Final (Diploma) -->
+        <div id="game-win-screen" class="absolute inset-0 z-30 hidden flex flex-col items-center justify-center bg-[#c5a059]/95 text-[#001a4d] p-4 text-center border-8 border-white">
+            <h2 class="text-xl md:text-3xl mb-4 font-bold tracking-widest text-white drop-shadow-md">¡DIPLOMA OBTENIDO!</h2>
+            <p class="text-[10px] md:text-xs mb-4 font-bold max-w-[80%] leading-relaxed">Felicidades, superaste los 3 niveles. Has demostrado ser un verdadero conocedor en la Feria del Libro Celaya 2026.</p>
+            <div class="bg-white/90 p-4 rounded mb-6 w-3/4 max-w-xs border-4 border-[#001a4d] shadow-lg">
+                <p class="text-[10px] mb-1 font-bold">RÉCORD FINAL:</p>
+                <p class="text-sm md:text-base mb-2 font-bold">NIVEL 3 (COMPLETADO)</p>
+                <p class="text-[10px] text-red-600 font-bold">VIDAS USADAS: <span id="win-lives-used" class="text-lg">0</span></p>
+            </div>
+            <!-- TODO FUTURO: Formulario para enviar reconocimiento a la BD -->
+            <button onclick="resetGame()" class="bg-[#001a4d] text-white px-6 py-4 text-xs md:text-sm font-bold border-b-4 border-[#000a2d] active:border-b-0 pointer-events-auto hover:bg-[#002b80] transition-colors">
+                VOLVER AL INICIO
+            </button>
+        </div>
+
+        <!-- Alertas in-game -->
+        <div id="game-alert" class="absolute top-1/4 left-1/2 -translate-x-1/2 z-50 bg-[#001a4d]/95 text-white px-6 py-4 rounded-lg border-2 border-[#c5a059] text-center text-[10px] md:text-xs font-bold opacity-0 pointer-events-none transition-opacity duration-300 drop-shadow-[0_0_10px_rgba(197,160,89,0.5)]">
+            Mensaje
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        
+        const GAME_WIDTH = 640;
+        const GAME_HEIGHT = 360;
+        const GROUND_HEIGHT = 40;
+        const PLAYER_HEIGHT = 40;
+        
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            let w = window.innerWidth;
+            let h = w * (GAME_HEIGHT / GAME_WIDTH);
+            if (h > window.innerHeight) {
+                h = window.innerHeight;
+                w = h * (GAME_WIDTH / GAME_HEIGHT);
+            }
+            container.style.width = `${w}px`;
+            container.style.height = `${h}px`;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = GAME_WIDTH * dpr;
+            canvas.height = GAME_HEIGHT * dpr;
+            ctx.scale(dpr, dpr);
+        }
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
+        resizeCanvas();
+
+        let gameState = 'START';
+        let frameCount = 0;
+        
+        // Sistema de Niveles y Puntaje
+        let playingLevel = 1; // El nivel que el jugador está jugando actualmente
+        let maxGameTime = 45;
+        let gameTime = 45;
+        let baseSpeedMultiplier = 1;
+        let currentSpeedMultiplier = 1;
+        
+        // Sistema de Mejores Puntajes
+        let highScores = JSON.parse(localStorage.getItem('celsusHighScoresV2')) || {
+            aprendiz: { level: 0, completed: false },
+            maestro: { level: 0, completed: false }
+        };
+        
+        function updateBestScoreDisplay() {
+            let ap = highScores.aprendiz;
+            let ma = highScores.maestro;
+            
+            document.getElementById('best-score-ap').innerText = ap.level > 0 ? `NIVEL ${ap.level} ${ap.completed ? '(COMPLETADO)' : '(FALLIDO)'}` : 'N/A';
+            document.getElementById('best-score-ma').innerText = ma.level > 0 ? `NIVEL ${ma.level} ${ma.completed ? '(COMPLETADO)' : '(FALLIDO)'}` : 'N/A';
+        }
+        updateBestScoreDisplay();
+        
+        function showGameAlert(msg, isSuccess) {
+            const alertDiv = document.getElementById('game-alert');
+            alertDiv.innerText = msg;
+            alertDiv.style.borderColor = isSuccess ? '#4ade80' : '#ef4444';
+            alertDiv.style.color = isSuccess ? '#4ade80' : '#ef4444';
+            alertDiv.style.opacity = 1;
+            setTimeout(() => { alertDiv.style.opacity = 0; }, 2500);
+        }
+
+        let bgHue = 215;
+        let lastPhaseCheck = 0;
+        let livesLeft = 3;
+        let maxLives = 3;
+        let difficulty = 'maestro';
+        let livesUsedTotal = 0;
+
+        const questionsAprendiz = [
+            { q: "¿En qué lugar es la Feria del Libro Celaya 2026?", a: ["Parque Fundadores 450", "Auditorio", "Zócalo"], c: 0 },
+            { q: "¿Qué cuento clásico tiene una manzana envenenada?", a: ["Cenicienta", "Blancanieves", "Rapunzel"], c: 1 },
+            { q: "¿Mascota leal de Harry Potter?", a: ["Un sapo", "Un perro", "Una lechuza"], c: 2 },
+            { q: "¿Niño de madera al que le crece la nariz?", a: ["Peter Pan", "Pinocho", "Gepetto"], c: 1 },
+            { q: "¿Fechas de la Feria Infantil y Juvenil Celaya 2026?", a: ["1 al 10 Oct", "29 Sept al 4 Oct", "15 al 20 Nov"], c: 1 },
+            { q: "¿Autor de 'El Principito'?", a: ["Antoine de Saint-Exupéry", "Hermanos Grimm", "Charles Perrault"], c: 0 },
+            { q: "¿Lugar en la feria para lectura?", a: ["Ágora", "Estadio", "Mercado"], c: 0 },
+            { q: "¿Niña que cae por la madriguera de un conejo blanco?", a: ["Dorothy", "Alicia", "Caperucita"], c: 1 },
+            { q: "¿Animal que usa botas en un cuento clásico?", a: ["Perro", "Lobo", "Gato"], c: 2 },
+            { q: "¿Quién escribió 'El patito feo'?", a: ["Charles Perrault", "Hans C. Andersen", "Esopo"], c: 1 }
+        ];
+
+        const questionsMaestro = [
+            { q: "¿Recinto de la Feria 2026 para Teatro de la Ciudad?", a: ["Teatro Tresguerras", "Parque Fundadores 450", "Casa de la Cultura"], c: 1 },
+            { q: "¿Autor de 'Cien años de soledad'?", a: ["Borges", "Cortázar", "García Márquez"], c: 2 },
+            { q: "¿Quién escribió 'Pedro Páramo'?", a: ["Juan Rulfo", "Octavio Paz", "Carlos Fuentes"], c: 0 },
+            { q: "¿Poeta mexicano autor de 'El laberinto de la soledad'?", a: ["Juan Rulfo", "Octavio Paz", "Alfonso Reyes"], c: 1 },
+            { q: "¿Cuándo termina la 2ª Feria Internacional del Libro Celaya 2026?", a: ["4 de Octubre", "29 de Septiembre", "10 de Octubre"], c: 0 },
+            { q: "¿Autor de 'Don Quijote de la Mancha'?", a: ["Miguel de Cervantes", "Lope de Vega", "Garcilaso de la Vega"], c: 0 },
+            { q: "¿Foro presente en el programa de la Feria de Celaya 2026?", a: ["Foro Emma Godoy", "Foro Juan Rulfo", "Aula José Emilio Pacheco"], c: 0 },
+            { q: "¿Ganador del Premio Nobel de Literatura en 1990?", a: ["Gabriel García Márquez", "Octavio Paz", "Mario Vargas Llosa"], c: 1 },
+            { q: "¿A quién se le atribuye 'La Ilíada'?", a: ["Sófocles", "Homero", "Virgilio"], c: 1 },
+            { q: "¿De dónde es originario Jorge Luis Borges?", a: ["México", "Argentina", "Colombia"], c: 1 }
+        ];
+
+        function updateLivesDisplay() {
+            const livesDiv = document.getElementById('lives-display');
+            if (livesDiv) {
+                livesDiv.innerText = '♥'.repeat(livesLeft) + '♡'.repeat(maxLives - livesLeft);
+            }
+        }
+
+        function getActiveQuestions() {
+            return difficulty === 'aprendiz' ? questionsAprendiz : questionsMaestro;
+        }
+
+        function startGame(selectedDifficulty) {
+            difficulty = selectedDifficulty;
+            maxLives = 3;
+            livesLeft = 3;
+            livesUsedTotal = 0;
+            playingLevel = 1;
+            startNextLevel();
+        }
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, duration, type = 'square') {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const player = {
+            x: 50,
+            y: GAME_HEIGHT - GROUND_HEIGHT - PLAYER_HEIGHT,
+            width: 44,
+            height: PLAYER_HEIGHT,
+            vy: 0,
+            gravity: 0.8,
+            jumpStrength: -14,
+            isJumping: false,
+            invincible: false,
+            invincibleTimer: 0,
+            
+            draw() {
+                ctx.save();
+                const px = Math.round(this.x);
+                const py = Math.round(this.y);
+
+                if (this.invincible) {
+                    const pulse = Math.sin(frameCount * 0.2);
+                    const auraColor = pulse > 0 ? '#c5a059' : '#00bfff';
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = auraColor;
+                    if (frameCount % 4 === 0) {
+                        ctx.fillStyle = auraColor;
+                        ctx.fillRect(px - 10 + Math.random()*60, py - 10 + Math.random()*60, 2, 2);
+                    }
+                }
+
+                ctx.fillStyle = this.invincible ? '#d4b57a' : '#8B4513';
+                ctx.fillRect(px + 8, py + 12, 28, 16);
+                ctx.fillRect(px + 28, py + 2, 14, 14);
+                
+                ctx.fillStyle = '#5D2E0A';
+                ctx.fillRect(px + 28, py + 2, 4, 8);
+                ctx.fillRect(px + 38, py + 2, 4, 8);
+                
+                ctx.fillStyle = '#D2B48C';
+                ctx.fillRect(px + 38, py + 8, 6, 6);
+                ctx.fillStyle = '#000';
+                ctx.fillRect(px + 42, py + 8, 2, 2);
+                
+                ctx.fillStyle = this.invincible ? '#00bfff' : '#FFF';
+                ctx.fillRect(px + 34, py + 6, 4, 4);
+                ctx.fillStyle = this.invincible ? '#FFF' : '#000';
+                ctx.fillRect(px + 36, py + 6, 2, 2);
+
+                ctx.fillStyle = '#5D2E0A';
+                const runAnim = this.isJumping ? 0 : Math.sin(frameCount * 0.4) * 6;
+                ctx.fillRect(px + 10, py + 28, 4, 12 + runAnim);
+                ctx.fillRect(px + 30, py + 28, 4, 12 - runAnim);
+
+                ctx.fillStyle = this.invincible ? '#c5a059' : '#8B4513';
+                const tailWag = Math.sin(frameCount * 0.8) * 4;
+                ctx.fillRect(px + 2, py + 12 + tailWag, 6, 4);
+
+                ctx.fillStyle = '#001a4d';
+                ctx.fillRect(px + 26, py + 14, 4, 4);
+                
+                ctx.restore();
+            },
+            
+            update() {
+                this.vy += this.gravity;
+                this.y += this.vy;
+                const groundLevel = GAME_HEIGHT - GROUND_HEIGHT - this.height;
+                if (this.y > groundLevel) {
+                    this.y = groundLevel;
+                    this.vy = 0;
+                    this.isJumping = false;
+                }
+                if (this.invincibleTimer > 0) {
+                    this.invincibleTimer--;
+                    if (this.invincibleTimer === 0) this.invincible = false;
+                }
+            },
+            
+            jump() {
+                if (!this.isJumping) {
+                    this.vy = this.jumpStrength;
+                    this.isJumping = true;
+                    playTone(350, 0.1, 'square');
+                }
+            }
+        };
+
+        let obstacles = [];
+        let powerups = [];
+
+        class Obstacle {
+            constructor() {
+                this.width = 32;
+                this.height = 32;
+                this.x = GAME_WIDTH + 50;
+                this.y = GAME_HEIGHT - GROUND_HEIGHT - 32;
+                this.speed = (5 + Math.random() * 2) * currentSpeedMultiplier;
+                
+                const phaseInLevel = Math.floor((maxGameTime - gameTime) / 10);
+                this.aggression = phaseInLevel + (playingLevel - 1) * 2; 
+            }
+            draw() {
+                const px = Math.round(this.x);
+                const py = Math.round(this.y);
+                
+                ctx.fillStyle = this.aggression > 3 ? '#991b1b' : (this.aggression > 1 ? '#dc2626' : '#f97316');
+                ctx.fillRect(px, py, 32, 32);
+
+                ctx.fillStyle = '#fff'; 
+                ctx.beginPath();
+                ctx.moveTo(px + 4, py + 8); ctx.lineTo(px + 12, py + 12); ctx.lineTo(px + 4, py + 14); ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(px + 28, py + 8); ctx.lineTo(px + 20, py + 12); ctx.lineTo(px + 28, py + 14); ctx.fill();
+
+                ctx.fillStyle = '#000';
+                if (this.aggression > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(px + 6, py + 22); ctx.lineTo(px + 10, py + 26);
+                    ctx.lineTo(px + 14, py + 22); ctx.lineTo(px + 18, py + 26);
+                    ctx.lineTo(px + 22, py + 22); ctx.lineTo(px + 26, py + 26);
+                    ctx.stroke();
+                } else {
+                    ctx.fillRect(px + 8, py + 22, 16, 4);
+                }
+
+                if (this.aggression > 0) {
+                    ctx.fillStyle = '#7f1d1d';
+                    ctx.beginPath(); ctx.moveTo(px + 10, py); ctx.lineTo(px + 16, py - 6); ctx.lineTo(px + 22, py); ctx.fill();
+                }
+                if (this.aggression > 2) {
+                    ctx.beginPath(); ctx.moveTo(px, py + 10); ctx.lineTo(px - 6, py + 16); ctx.lineTo(px, py + 22); ctx.fill();
+                }
+            }
+            update() {
+                this.x -= this.speed;
+            }
+        }
+
+        class Shield {
+            constructor() {
+                this.x = GAME_WIDTH + 50;
+                this.y = GAME_HEIGHT - 120 - Math.random() * 80;
+                this.width = 34;
+                this.height = 40;
+                this.speed = 4 * currentSpeedMultiplier;
+                this.oscillation = Math.random() * Math.PI;
+            }
+            draw() {
+                const px = Math.round(this.x);
+                const py = Math.round(this.y + Math.sin(frameCount * 0.1 + this.oscillation) * 5);
+                
+                ctx.save();
+                ctx.shadowColor = '#c5a059';
+                ctx.shadowBlur = 8;
+                ctx.fillStyle = '#001a4d';
+                ctx.beginPath();
+                ctx.moveTo(px, py); ctx.lineTo(px + 34, py); ctx.lineTo(px + 34, py + 25);
+                ctx.quadraticCurveTo(px + 34, py + 40, px + 17, py + 40);
+                ctx.quadraticCurveTo(px, py + 40, px, py + 25); ctx.fill();
+
+                ctx.strokeStyle = '#c5a059'; ctx.lineWidth = 3; ctx.stroke();
+
+                ctx.fillStyle = '#FFF';
+                ctx.beginPath(); ctx.arc(px + 17, py + 22, 10, 0, Math.PI * 2); ctx.fill();
+
+                ctx.fillStyle = '#c5a059';
+                ctx.beginPath(); ctx.moveTo(px + 12, py + 26); ctx.lineTo(px + 17, py + 18); ctx.lineTo(px + 22, py + 26); ctx.fill();
+
+                ctx.fillStyle = '#FFF';
+                ctx.beginPath();
+                ctx.arc(px + 12, py + 32, 1, 0, Math.PI * 2);
+                ctx.arc(px + 17, py + 33, 1, 0, Math.PI * 2);
+                ctx.arc(px + 22, py + 32, 1, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+            update() {
+                this.x -= this.speed;
+            }
+        }
+
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            frameCount++;
+            gameTime -= 1/60;
+
+            let phase = Math.floor((maxGameTime - gameTime) / 5);
+            if (phase > lastPhaseCheck && phase > 0) {
+                lastPhaseCheck = phase;
+                currentSpeedMultiplier = baseSpeedMultiplier + (phase * 0.1);
+                bgHue = (bgHue + 20) % 360;
+                playTone(600, 0.2, 'sine');
+            }
+
+            // Victoria de Nivel
+            if (gameTime <= 0) {
+                gameTime = 0;
+                
+                // Actualizar Récord si completó un nivel superior
+                let currentBest = highScores[difficulty];
+                if (playingLevel >= currentBest.level) {
+                    highScores[difficulty] = { level: playingLevel, completed: true };
+                    localStorage.setItem('celsusHighScoresV2', JSON.stringify(highScores));
+                    updateBestScoreDisplay();
+                }
+
+                if (playingLevel >= 3) {
+                    gameState = 'GAME_WIN';
+                    document.getElementById('win-lives-used').innerText = livesUsedTotal;
+                    showScreen('game-win-screen');
+                    playTone(523, 0.1, 'sine');
+                    setTimeout(() => playTone(659, 0.1, 'sine'), 150);
+                    setTimeout(() => playTone(783, 0.1, 'sine'), 300);
+                    setTimeout(() => playTone(1046, 0.4, 'sine'), 450);
+                } else {
+                    gameState = 'LEVEL_CLEAR';
+                    document.getElementById('level-clear-title').innerText = `¡NIVEL ${playingLevel} SUPERADO!`;
+                    document.getElementById('lives-used-display-lc').innerText = livesUsedTotal;
+                    
+                    showScreen('level-clear-screen');
+                    playTone(523, 0.1, 'sine');
+                    setTimeout(() => playTone(659, 0.1, 'sine'), 150);
+                    setTimeout(() => playTone(783, 0.3, 'sine'), 300);
+                }
+            }
+
+            document.getElementById('time-display').innerText = Math.ceil(gameTime);
+            player.update();
+
+            if (frameCount % Math.max(25, Math.floor(90 / currentSpeedMultiplier)) === 0) obstacles.push(new Obstacle());
+            let powerupFreq = (difficulty === 'aprendiz') ? 250 : 400;
+            if (frameCount % powerupFreq === 0) powerups.push(new Shield());
+
+            obstacles.forEach((obs, index) => {
+                obs.update();
+                if (checkCollision(player, obs)) {
+                    if (player.invincible) {
+                        obstacles.splice(index, 1);
+                        playTone(200, 0.1, 'noise');
+                    } else {
+                        if (livesLeft > 0) {
+                            triggerQuiz(index);
+                        } else {
+                            endGame();
+                        }
+                    }
+                }
+            });
+            obstacles = obstacles.filter(o => o.x > -100);
+
+            powerups.forEach((p, index) => {
+                p.update();
+                if (checkCollision(player, p, 5)) {
+                    player.invincible = true;
+                    player.invincibleTimer = 240; 
+                    powerups.splice(index, 1);
+                    playTone(600, 0.1, 'sine');
+                    playTone(800, 0.2, 'sine');
+                    const ui = document.getElementById('powerup-status');
+                    ui.style.opacity = 1;
+                    setTimeout(() => ui.style.opacity = 0, 2000);
+                }
+            });
+            powerups = powerups.filter(p => p.x > -100);
+        }
+
+        function draw() {
+            ctx.fillStyle = `hsl(${bgHue}, 50%, 10%)`;
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            
+            ctx.strokeStyle = `hsl(${bgHue}, 50%, 15%)`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let x = (frameCount * -2 * currentSpeedMultiplier) % 40; x < GAME_WIDTH; x+=40) {
+                ctx.moveTo(x, 0); ctx.lineTo(x, GAME_HEIGHT);
+            }
+            ctx.stroke();
+
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, GAME_HEIGHT - GROUND_HEIGHT, GAME_WIDTH, GROUND_HEIGHT);
+            ctx.fillStyle = '#c5a059'; 
+            ctx.fillRect(0, GAME_HEIGHT - GROUND_HEIGHT, GAME_WIDTH, 4);
+
+            obstacles.forEach(o => o.draw());
+            powerups.forEach(p => p.draw());
+            player.draw();
+        }
+
+        function checkCollision(player, entity, padding = 6) {
+            return !(entity.x + padding > player.x + player.width - padding || 
+                     entity.x + entity.width - padding < player.x + padding || 
+                     entity.y + padding > player.y + player.height - padding || 
+                     entity.y + entity.height - padding < player.y + padding);
+        }
+
+        function triggerQuiz(obsIndex) {
+            gameState = 'QUIZ';
+            obstacles.splice(obsIndex, 1);
+            const activeQs = getActiveQuestions();
+            const q = activeQs[Math.floor(Math.random() * activeQs.length)];
+            document.getElementById('quiz-question').innerText = q.q;
+            const optsDiv = document.getElementById('quiz-options');
+            optsDiv.innerHTML = '';
+            q.a.forEach((ans, i) => {
+                const btn = document.createElement('button');
+                btn.className = "quiz-btn w-full bg-[#c5a059] text-[#001a4d] py-3 text-[10px] font-bold border-b-4 border-[#8a703e] rounded hover:bg-[#d4b57a]";
+                btn.innerText = ans;
+                btn.onclick = () => {
+                    if (i === q.c) {
+                        showGameAlert("¡Correcto! Conservas tu vida.", true);
+                        gameState = 'PLAYING';
+                        player.invincible = true;
+                        player.invincibleTimer = 180;
+                        showScreen('game-ui');
+                    } else {
+                        livesLeft--;
+                        livesUsedTotal++;
+                        updateLivesDisplay();
+                        showGameAlert("¡Error! Suerte la próxima. Has perdido una vida.", false);
+                        gameState = 'PLAYING';
+                        player.invincible = true;
+                        player.invincibleTimer = 180;
+                        showScreen('game-ui');
+                    }
+                };
+                optsDiv.appendChild(btn);
+            });
+            showScreen('quiz-screen');
+        }
+
+        function endGame() {
+            gameState = 'GAMEOVER';
+            
+            // Lógica clara para el display de Game Over
+            document.getElementById('current-score-display').innerText = playingLevel;
+            document.getElementById('lives-used-display-go').innerText = livesUsedTotal;
+            
+            // Actualizar Récord si murió pero su nivel actual es mayor al récord histórico
+            let currentBest = highScores[difficulty];
+            if (playingLevel > currentBest.level || (playingLevel === currentBest.level && !currentBest.completed)) {
+                highScores[difficulty] = { level: playingLevel, completed: false };
+                localStorage.setItem('celsusHighScoresV2', JSON.stringify(highScores));
+                updateBestScoreDisplay();
+            }
+            
+            let bestOfThis = highScores[difficulty];
+            document.getElementById('high-score-display').innerText = `${bestOfThis.level} ${bestOfThis.completed ? '(COMPLETADO)' : '(FALLIDO)'}`;
+
+            showScreen('game-over-screen');
+            playTone(150, 0.4, 'sawtooth');
+        }
+
+        function showScreen(id) {
+            ['start-screen', 'game-ui', 'quiz-screen', 'game-over-screen', 'level-clear-screen', 'game-win-screen'].forEach(s => {
+                document.getElementById(s).classList.add('hidden');
+            });
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        // Volver al menú de inicio
+        function resetGame() {
+            showScreen('start-screen');
+        }
+
+        // Prepara y ejecuta el nivel actual (`playingLevel`)
+        function startNextLevel() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            // Fijo 30 segundos por nivel, aumento de dificultad más rápido
+            maxGameTime = 30;
+            gameTime = maxGameTime;
+            
+            if (difficulty === 'aprendiz') {
+                baseSpeedMultiplier = 0.8 + ((playingLevel - 1) * 0.15);
+            } else {
+                baseSpeedMultiplier = 1.0 + ((playingLevel - 1) * 0.25);
+            }
+            currentSpeedMultiplier = baseSpeedMultiplier;
+            
+            frameCount = 0;
+            bgHue = 215;
+            lastPhaseCheck = 0;
+            
+            if (difficulty === 'aprendiz') {
+                livesLeft = maxLives;
+            }
+            updateLivesDisplay();
+            
+            obstacles = [];
+            powerups = [];
+            player.y = GAME_HEIGHT - GROUND_HEIGHT - PLAYER_HEIGHT;
+            player.vy = 0;
+            player.invincible = false;
+            player.invincibleTimer = 0;
+            
+            document.getElementById('level-display').innerText = `NIVEL ${playingLevel}`;
+            
+            // Importante: No incrementamos `playingLevel` aquí, se incrementa al DARLE AL BOTÓN de "Siguiente Nivel"
+            // Para eso, necesitamos redefinir el onclick del botón en HTML.
+            
+            gameState = 'PLAYING';
+            showScreen('game-ui');
+        }
+        
+        // Nueva función auxiliar para el botón de victoria
+        function advanceToNextLevel() {
+            playingLevel++;
+            startNextLevel();
+        }
+        
+        // Actualizamos el botón de la pantalla de nivel completado dinámicamente
+        document.querySelector('#level-clear-screen button').onclick = advanceToNextLevel;
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        const inputAction = (e) => {
+            if (gameState === 'PLAYING') {
+                if(e.type !== 'keydown' || e.code === 'Space' || e.code === 'ArrowUp') player.jump();
+            }
+        };
+        window.addEventListener('keydown', inputAction);
+        canvas.addEventListener('mousedown', inputAction);
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); inputAction(e); });
+
+        loop();
+    </script>
+</body>
+</html>
